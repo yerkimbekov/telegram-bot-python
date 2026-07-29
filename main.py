@@ -1,8 +1,13 @@
+import os
 import time
+from dotenv import load_dotenv
 import requests
 
+# Load environment variables
+load_dotenv()
+
 # Config
-TELEGRAM_BOT_TOKEN = "TELEGRAM_BOT_TOKEN"
+TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 CHAT_ID = "276728739"
 CHECK_INTERVAL_SECONDS = 5  # Poll every 5 minutes
 
