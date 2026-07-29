@@ -30,6 +30,9 @@ PAYLOAD = {
     "keywords": [],
 }
 
+# In-memory store for performance availability state: { performance_id: bool_is_available }
+seen_states = {}
+
 
 def send_telegram_message(message: str) -> None:
     """Sends a formatted message to your Telegram chat."""
@@ -48,7 +51,9 @@ def send_telegram_message(message: str) -> None:
 
 
 def check_available_sessions() -> None:
-    """Fetches sessions from Science Museum API and alerts if tickets are available."""
+    """Fetches sessions and alerts ONLY on new availability state transitions."""
+    global seen_states
+
     try:
         response = requests.post(API_URL, headers=HEADERS, json=PAYLOAD, timeout=15)
         response.raise_for_status()
@@ -57,39 +62,50 @@ def check_available_sessions() -> None:
         print(f"Failed to fetch cinema data: {e}")
         return
 
-    available_performances = []
+    newly_available_alerts = []
 
-    # Parse response structure
     for production in data.get("productions", []):
         title = production.get("productionTitle", "Film Session")
         for perf in production.get("performances", []):
-            # Check availability conditions
+            perf_id = perf.get("id")
+            if not perf_id:
+                continue
+
             is_on_sale = perf.get("isOnSale", False)
             status_msg = perf.get("performanceStatusMessage", "")
 
-            if is_on_sale or status_msg.lower() != "sold out":
+            # Current availability flag
+            is_currently_available = is_on_sale or (status_msg.lower() != "sold out")
+            previously_available = seen_states.get(perf_id, False)
+
+            # State transition check: Alert only if it wasn't available before, but is now
+            if is_currently_available and not previously_available:
                 display_date = perf.get("displayDate", "Unknown Date")
                 display_time = perf.get("displayTime", "Unknown Time")
                 booking_url = perf.get("actionUrl", "")
 
-                available_performances.append(
+                newly_available_alerts.append(
                     f"🎬 *{title}*\n"
                     f"📅 *Date:* {display_date}\n"
                     f"⏰ *Time:* {display_time}\n"
                     f"🔗 [Book Now]({booking_url})"
                 )
 
-    if available_performances:
-        alert_body = "\n\n---\n\n".join(available_performances)
+            # Update the stored state for this performance
+            seen_states[perf_id] = is_currently_available
+
+    # Send alerts if there are new openings
+    if newly_available_alerts:
+        alert_body = "\n\n---\n\n".join(newly_available_alerts)
         full_message = f"🎟️ **Tickets Available!**\n\n{alert_body}"
-        print(f"Found {len(available_performances)} available session(s). Sending alert...")
+        print(f"Found {len(newly_available_alerts)} newly available session(s). Sending alert...")
         send_telegram_message(full_message)
     else:
-        print("Checked: All sessions remain sold out.")
+        print("Checked: No new availability transitions found.")
 
 
 if __name__ == "__main__":
-    print("Starting Science Museum Ticket Monitor...")
+    print("Starting Science Museum Ticket Monitor with state tracking...")
     while True:
         check_available_sessions()
         time.sleep(CHECK_INTERVAL_SECONDS)
