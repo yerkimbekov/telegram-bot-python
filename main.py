@@ -97,7 +97,7 @@ def check_available_sessions() -> None:
     # Send alerts if there are new openings
     if newly_available_alerts:
         alert_body = "\n\n---\n\n".join(newly_available_alerts)
-        full_message = f"🎟️ **Tickets Available!**\n\n{alert_body}"
+        full_message = f"🎟️ **Tickets Available!!!**\n\n{alert_body}"
         print(f"Found {len(newly_available_alerts)} newly available session(s). Sending alert...")
         send_telegram_message(full_message)
     else:
