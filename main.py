@@ -35,40 +35,32 @@ seen_states = {}
 
 
 def send_telegram_message(message: str) -> None:
-    """Sends a formatted message to your Telegram chat."""
+    """Sends a formatted message to your Telegram chat(s).
+
+    CHAT_IDS environment variable may contain a comma-separated list of chat IDs.
+    If CHAT_IDS is not set, falls back to the single CHAT_ID constant.
+    """
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": CHAT_ID,
-        "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False,
-    }
-    payload2 = {
-        "chat_id": "193811197",
-        "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False,
-    }
-    payload3 = {
-        "chat_id": "298228636",
-        "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False,
-    }
-    payload4 = {
-        "chat_id": "289141687",
-        "text": message,
-        "parse_mode": "Markdown",
-        "disable_web_page_preview": False,
-    }
-    try:
-        res = requests.post(url, json=payload, timeout=10)
-        res2 = requests.post(url, json=payload2, timeout=10)
-        res3 = requests.post(url, json=payload3, timeout=10)
-        res4 = requests.post(url, json=payload4, timeout=10)
-        res.raise_for_status()
-    except Exception as e:
-        print(f"Error sending Telegram notification: {e}")
+
+    # Prefer CHAT_IDS env (comma-separated) but fallback to legacy CHAT_ID constant
+    chat_ids_env = os.getenv('CHAT_IDS')
+    if chat_ids_env:
+        chat_ids = [cid.strip() for cid in chat_ids_env.split(',') if cid.strip()]
+    else:
+        chat_ids = [CHAT_ID]
+
+    for cid in chat_ids:
+        payload = {
+            "chat_id": cid,
+            "text": message,
+            "parse_mode": "Markdown",
+            "disable_web_page_preview": False,
+        }
+        try:
+            # Per your request, do not check responses' status codes here.
+            requests.post(url, json=payload, timeout=10)
+        except Exception as e:
+            print(f"Error sending Telegram notification to {cid}: {e}")
 
 
 def check_available_sessions() -> None:
