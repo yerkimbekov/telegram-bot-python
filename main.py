@@ -16,9 +16,10 @@ API_ID = int(os.getenv('API_ID', 0))
 API_HASH = os.getenv('API_HASH')
 TARGET_BOT_USERNAME = os.getenv('TARGET_BOT_USERNAME')
 
-# Init Telethon Userbot client
-user_client = TelegramClient('user_session', API_ID, API_HASH)
+SESSION_STRING = os.getenv('TELEGRAM_SESSION')
 
+# Init Telethon Userbot client
+user_client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
 def send_telegram_message(message: str) -> None:
     """Sends a formatted message to your Telegram chat(s).
