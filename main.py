@@ -50,7 +50,7 @@ def send_telegram_message(message: str) -> None:
             print(f"Error sending Telegram notification to {cid}: {e}")
 
 
-@user_client.on(events.NewMessage(from_users=TARGET_BOT_USERNAME))
+@user_client.on(events.NewMessage(from_users=TARGET_BOT_USERNAME), pattern=r'PORTUGAL')
 async def handle_target_bot_message(event):
     """Event handler for incoming messages from the target bot."""
     incoming_text = event.message.text
