@@ -3,6 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 import requests
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 # Load environment variables
 load_dotenv()
