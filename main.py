@@ -1,7 +1,8 @@
 import os
-import time
+import asyncio
 from dotenv import load_dotenv
 import requests
+from telethon import TelegramClient, events
 
 # Load environment variables
 load_dotenv()
@@ -9,29 +10,14 @@ load_dotenv()
 # Config
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 CHAT_ID = "276728739"
-CHECK_INTERVAL_SECONDS = 5  # Poll every 5 minutes
 
-API_URL = "https://my.sciencemuseum.org.uk/api/products/productionseasons"
+# Userbot credentials (my.telegram.org)
+API_ID = int(os.getenv('API_ID', 0))
+API_HASH = os.getenv('API_HASH')
+TARGET_BOT_USERNAME = os.getenv('TARGET_BOT_USERNAME')
 
-HEADERS = {
-    "accept": "application/json, text/javascript, */*; q=0.01",
-    "accept-language": "en-GB,en;q=0.9",
-    "content-type": "application/json",
-    "origin": "https://my.sciencemuseum.org.uk",
-    "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
-    "x-requested-with": "XMLHttpRequest",
-}
-
-PAYLOAD = {
-    "productionSeasonIdFilter": [],
-    "keywordIds": ["794"],
-    "startDate": "2026-07-01T00:00",
-    "endDate": "2026-10-01T23:59",
-    "keywords": [],
-}
-
-# In-memory store for performance availability state: { performance_id: bool_is_available }
-seen_states = {}
+# Init Telethon Userbot client
+user_client = TelegramClient('user_session', API_ID, API_HASH)
 
 
 def send_telegram_message(message: str) -> None:
@@ -57,68 +43,30 @@ def send_telegram_message(message: str) -> None:
             "disable_web_page_preview": False,
         }
         try:
-            # Per your request, do not check responses' status codes here.
             requests.post(url, json=payload, timeout=10)
         except Exception as e:
             print(f"Error sending Telegram notification to {cid}: {e}")
 
 
-def check_available_sessions() -> None:
-    """Fetches sessions and alerts ONLY on new availability state transitions."""
-    global seen_states
+@user_client.on(events.NewMessage(from_users=TARGET_BOT_USERNAME))
+async def handle_target_bot_message(event):
+    """Event handler for incoming messages from the target bot."""
+    incoming_text = event.message.text
+    print(f"[*] Intercepted new message from {TARGET_BOT_USERNAME}")
 
-    try:
-        response = requests.post(API_URL, headers=HEADERS, json=PAYLOAD, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-    except Exception as e:
-        print(f"Failed to fetch cinema data: {e}")
-        return
+    full_message = f"{incoming_text}"
+    
+    # Run synchronous request function in a non-blocking thread executor
+    loop = asyncio.get_running_loop()
+    await loop.run_in_executor(None, send_telegram_message, full_message)
 
-    newly_available_alerts = []
 
-    for production in data.get("productions", []):
-        title = production.get("productionTitle", "Film Session")
-        for perf in production.get("performances", []):
-            perf_id = perf.get("id")
-            if not perf_id:
-                continue
-
-            is_on_sale = perf.get("isOnSale", False)
-            status_msg = perf.get("performanceStatusMessage", "")
-
-            # Current availability flag
-            is_currently_available = is_on_sale or (status_msg.lower() != "sold out")
-            previously_available = seen_states.get(perf_id, False)
-
-            # State transition check: Alert only if it wasn't available before, but is now
-            if is_currently_available and not previously_available:
-                display_date = perf.get("displayDate", "Unknown Date")
-                display_time = perf.get("displayTime", "Unknown Time")
-                booking_url = perf.get("actionUrl", "")
-
-                newly_available_alerts.append(
-                    f"🎬 *{title}*\n"
-                    f"📅 *Date:* {display_date}\n"
-                    f"⏰ *Time:* {display_time}\n"
-                    f"🔗 [Book Now]({booking_url})"
-                )
-
-            # Update the stored state for this performance
-            seen_states[perf_id] = is_currently_available
-
-    # Send alerts if there are new openings
-    if newly_available_alerts:
-        alert_body = "\n\n---\n\n".join(newly_available_alerts)
-        full_message = f"🎟️ **Tickets Available!!!**\n\n{alert_body}"
-        print(f"Found {len(newly_available_alerts)} newly available session(s). Sending alert...")
-        send_telegram_message(full_message)
-    else:
-        print("Checked: No new availability transitions found.")
+async def main():
+    print(f"Starting Telegram Monitor for target bot: @{TARGET_BOT_USERNAME}...")
+    await user_client.start()
+    print("[+] Userbot connected and listening for incoming messages.")
+    await user_client.run_until_disconnected()
 
 
 if __name__ == "__main__":
-    print("Starting Science Museum Ticket Monitor with state tracking...")
-    while True:
-        check_available_sessions()
-        time.sleep(CHECK_INTERVAL_SECONDS)
+    asyncio.run(main())
