@@ -1,6 +1,7 @@
 import os
 import asyncio
 from dotenv import load_dotenv
+import re
 import requests
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
@@ -41,8 +42,11 @@ def send_telegram_message(message: str) -> None:
         payload = {
             "chat_id": cid,
             "text": message,
-            "parse_mode": "Markdown",
+            "parse_mode": "HTML",
             "disable_web_page_preview": False,
+            "link_preview_options": {
+                "is_disabled": True
+            }
         }
         try:
             requests.post(url, json=payload, timeout=10)
@@ -50,17 +54,30 @@ def send_telegram_message(message: str) -> None:
             print(f"Error sending Telegram notification to {cid}: {e}")
 
 
-@user_client.on(events.NewMessage(from_users=TARGET_BOT_USERNAME, pattern=r'PORTUGAL'))
+@user_client.on(events.NewMessage(from_users=TARGET_BOT_USERNAME))
 async def handle_target_bot_message(event):
     """Event handler for incoming messages from the target bot."""
     incoming_text = event.message.text
-    print(f"[*] Intercepted new message from {TARGET_BOT_USERNAME}")
+    if "PORTUGAL" in incoming_text:
+        print(f"[*] Intercepted new message from {TARGET_BOT_USERNAME}")
 
-    full_message = f"{incoming_text}"
-    
-    # Run synchronous request function in a non-blocking thread executor
-    loop = asyncio.get_running_loop()
-    await loop.run_in_executor(None, send_telegram_message, full_message)
+        slot_match = re.search(r'(?:Earliest available slot|slot):\s*([\d\.\/-]+)', incoming_text, re.IGNORECASE)
+        if slot_match:
+            earliest_slot = slot_match.group(1).strip()
+        else:
+            date_match = re.search(r'\b\d{2}[\.\/-]\d{2}(?:[\.\/-]\d{2,4})?\b', incoming_text)
+            earliest_slot = date_match.group(0) if date_match else "N/A"
+
+        notification_text = (
+            f"🇵🇹 <b>PORTUGAL</b>\n\n"
+            f"🟢 London: Tourist visa\n\n"
+            f"Earliest available slot: {earliest_slot}\n\n"
+            f'<a href="https://visa.vfsglobal.com/gbr/en/prt/login">Quick Link</a>'
+        )
+        
+        # Run synchronous request function in a non-blocking thread executor
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, send_telegram_message, notification_text)
 
 
 async def main():
